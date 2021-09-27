@@ -1,168 +1,190 @@
-use combine::parser::char::{char, digit, hex_digit, oct_digit, string};
-use combine::parser::range::{range, recognize};
-use combine::stream::RangeStream;
-use combine::*;
+use nom::{
+    branch::*, bytes::complete::*, character::complete::*, combinator::*, error::context, multi::*,
+    sequence::*, AsChar, IResult,
+};
 
 // ;; Boolean
 
 // boolean = true / false
-parse!(boolean() -> bool, {
-    choice((
-        (char('t'), range("rue"),),
-        (char('f'), range("alse"),),
-    )).map(|p| p.0 == 't')
-});
+pub(crate) fn boolean(input: &str) -> IResult<&str, bool> {
+    alt((map(tag("true"), |_| true), map(tag("false"), |_| false)))(input)
+}
 
 // ;; Integer
 
 // integer = dec-int / hex-int / oct-int / bin-int
-parse!(integer() -> i64, {
-    choice!(
-        attempt(hex_int()),
-        attempt(oct_int()),
-        attempt(bin_int()),
-        dec_int()
-            .and_then(|s| s.replace("_", "").parse())
-            .message("While parsing an Integer")
-    )
-});
+pub(crate) fn integer(input: &str) -> IResult<&str, i64> {
+    alt((
+        hex_int,
+        oct_int,
+        bin_int,
+        context(
+            "While parsing an Integer",
+            map_res(dec_int, |s| s.replace("_", "").parse()),
+        ),
+    ))(input)
+}
 
 // dec-int = [ minus / plus ] unsigned-dec-int
 // unsigned-dec-int = DIGIT / digit1-9 1*( DIGIT / underscore DIGIT )
-parse!(dec_int() -> &'a str, {
-    recognize((
-        optional(choice([char('-'), char('+')])),
-        choice((
+pub(crate) fn dec_int(input: &str) -> IResult<&str, &str> {
+    recognize(tuple((
+        opt(alt((char('+'), char('-')))),
+        alt((
             char('0'),
-            (
-                satisfy(|c| ('1'..='9').contains(&c)),
-                skip_many((
-                    optional(char('_')),
-                    skip_many1(digit()),
+            map(
+                tuple((
+                    satisfy(|c| ('1'..='9').contains(&c)),
+                    take_while(is_dec_digit_with_sep),
                 )),
-            ).map(|t| t.0),
+                |t| t.0,
+            ),
         )),
-    ))
-});
+    )))(input)
+}
+#[inline]
+fn is_dec_digit_with_sep(i: impl AsChar + Copy) -> bool {
+    i.is_dec_digit() || i.as_char() == '_'
+}
 
 // hex-prefix = %x30.78               ; 0x
 // hex-int = hex-prefix HEXDIG *( HEXDIG / underscore HEXDIG )
-parse!(hex_int() -> i64, {
-    string("0x").with(
-        recognize((
-            hex_digit(),
-            skip_many((
-                optional(char('_')),
-                skip_many1(hex_digit()),
+pub(crate) fn hex_int(input: &str) -> IResult<&str, i64> {
+    context(
+        "While parsing a hexadecimal Integer",
+        map_res(
+            tuple((
+                tag("0x"),
+                recognize(tuple((
+                    satisfy(is_hex_digit),
+                    take_while(is_hex_digit_with_sep),
+                ))),
             )),
-        ).map(|t| t.0)
-    )).and_then(|s: &str| i64::from_str_radix(&s.replace("_", ""), 16))
-       .message("While parsing a hexadecimal Integer")
-});
+            |t: (&str, &str)| {
+                let s = t.0;
+                i64::from_str_radix(&s.replace("_", ""), 16)
+            },
+        ),
+    )(input)
+}
+#[inline]
+fn is_hex_digit(i: impl AsChar + Copy) -> bool {
+    i.is_hex_digit()
+}
+#[inline]
+fn is_hex_digit_with_sep(i: impl AsChar + Copy) -> bool {
+    i.is_hex_digit() || i.as_char() == '_'
+}
 
 // oct-prefix = %x30.6F               ; 0o
 // oct-int = oct-prefix digit0-7 *( digit0-7 / underscore digit0-7 )
-parse!(oct_int() -> i64, {
-    string("0o").with(
-        recognize((
-            oct_digit(),
-            skip_many((
-                optional(char('_')),
-                skip_many1(oct_digit()),
+pub(crate) fn oct_int(input: &str) -> IResult<&str, i64> {
+    context(
+        "While parsing an octal Integer",
+        map_res(
+            tuple((
+                tag("0o"),
+                recognize(tuple((
+                    satisfy(is_oct_digit),
+                    take_while(is_oct_digit_with_sep),
+                ))),
             )),
-        ).map(|t| t.0)
-    )).and_then(|s: &str| i64::from_str_radix(&s.replace("_", ""), 8))
-       .message("While parsing an octal Integer")
-});
+            |t: (&str, &str)| {
+                let s = t.0;
+                i64::from_str_radix(&s.replace("_", ""), 8)
+            },
+        ),
+    )(input)
+}
+#[inline]
+fn is_oct_digit(i: impl AsChar + Copy) -> bool {
+    i.is_oct_digit()
+}
+#[inline]
+fn is_oct_digit_with_sep(i: impl AsChar + Copy) -> bool {
+    i.is_oct_digit() || i.as_char() == '_'
+}
 
 // bin-prefix = %x30.62               ; 0b
 // bin-int = bin-prefix digit0-1 *( digit0-1 / underscore digit0-1 )
-parse!(bin_int() -> i64, {
-    string("0b").with(
-        recognize((
-            satisfy(|c: char| c.is_digit(0x2)),
-            skip_many((
-                optional(char('_')),
-                skip_many1(satisfy(|c: char| c.is_digit(0x2))),
-            )),
-        ).map(|t| t.0)
-    )).and_then(|s: &str| i64::from_str_radix(&s.replace("_", ""), 2))
-       .message("While parsing a binary Integer")
-});
+pub(crate) fn bin_int(input: &str) -> IResult<&str, i64> {
+    context(
+        "While parsing a binary Integer",
+        map_res(
+            tuple((tag("0b"), recognize(tuple((one_of("01"), one_of("01_")))))),
+            |t: (&str, &str)| {
+                let s = t.0;
+                i64::from_str_radix(&s.replace("_", ""), 2)
+            },
+        ),
+    )(input)
+}
 
 // ;; Float
 
 // float = float-int-part ( exp / frac [ exp ] )
 // float =/ special-float
 // float-int-part = dec-int
-parse!(float() -> f64, {
-    choice((
-        parse_float()
-            .and_then(|s| s.replace("_", "").parse()),
-        special_float(),
-    )).message("While parsing a Float")
-});
-
-parse!(parse_float() -> &'a str, {
-    recognize((
-        attempt((dec_int(), look_ahead(one_of("eE.".chars())))),
-        choice((
-            exp(),
-            (
-                frac(),
-                optional(exp()),
-            ).map(|_| "")
+pub(crate) fn float(input: &str) -> IResult<&str, f64> {
+    context(
+        "While parsing a Float",
+        alt((
+            map_res(parse_float, |s| s.replace(" ", "").parse()),
+            special_float,
         )),
-    ))
-});
+    )(input)
+}
+
+pub(crate) fn parse_float(input: &str) -> IResult<&str, &str> {
+    recognize(tuple((dec_int, opt(frac), exp)))(input)
+}
 
 // frac = decimal-point zero-prefixable-int
 // decimal-point = %x2E               ; .
-parse!(frac() -> &'a str, {
-    recognize((
-        char('.'),
-        parse_zero_prefixable_int(),
-    ))
-});
+pub(crate) fn frac(input: &str) -> IResult<&str, &str> {
+    recognize(tuple((char('.'), parse_zero_prefixable_int)))(input)
+}
 
 // zero-prefixable-int = DIGIT *( DIGIT / underscore DIGIT )
-parse!(parse_zero_prefixable_int() -> &'a str, {
-    recognize((
-        skip_many1(digit()),
-        skip_many((
-            optional(char('_')),
-            skip_many1(digit()),
-        )),
-    ))
-});
+pub(crate) fn parse_zero_prefixable_int(input: &str) -> IResult<&str, &str> {
+    recognize(tuple((
+        satisfy(is_dec_digit),
+        take_while(is_dec_digit_with_sep),
+    )))(input)
+}
+#[inline]
+fn is_dec_digit(i: impl AsChar + Copy) -> bool {
+    i.is_dec_digit()
+}
 
 // exp = "e" float-exp-part
 // float-exp-part = [ minus / plus ] zero-prefixable-int
-parse!(exp() -> &'a str, {
-    recognize((
-        one_of("eE".chars()),
-        optional(one_of("+-".chars())),
-        parse_zero_prefixable_int(),
-    ))
-});
+pub(crate) fn exp(input: &str) -> IResult<&str, &str> {
+    recognize(tuple((
+        one_of("eE"),
+        opt(one_of("+-")),
+        parse_zero_prefixable_int,
+    )))(input)
+}
 
 // special-float = [ minus / plus ] ( inf / nan )
-parse!(special_float() -> f64, {
-    attempt(optional(one_of("+-".chars())).and(choice((inf(), nan()))).map(|(s, f)| {
-        match s {
+pub(crate) fn special_float(input: &str) -> IResult<&str, f64> {
+    map(
+        tuple((opt(one_of("+-")), alt((nan, inf)))),
+        |(s, f)| match s {
             Some('+') | None => f,
             Some('-') => -f,
             _ => unreachable!("one_of should prevent this"),
-        }
-    }))
-});
+        },
+    )(input)
+}
 
 // inf = %x69.6e.66  ; inf
-parse!(inf() -> f64, {
-    range("inf").map(|_| f64::INFINITY)
-});
+pub(crate) fn inf(input: &str) -> IResult<&str, f64> {
+    map(tag("inf"), |_| f64::INFINITY)(input)
+}
 
 // nan = %x6e.61.6e  ; nan
-parse!(nan() -> f64, {
-    range("nan").map(|_| f64::NAN)
-});
+pub(crate) fn nan(input: &str) -> IResult<&str, f64> {
+    map(tag("nan"), |_| f64::NAN)(input)
+}

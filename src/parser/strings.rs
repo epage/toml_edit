@@ -1,12 +1,13 @@
-use crate::parser::errors::CustomError;
-use crate::parser::trivia::{is_non_ascii, is_wschar, newline, ws, ws_newlines};
-use combine::error::{Commit, Info};
-use combine::parser::char::char;
-use combine::parser::range::{range, take, take_while, take_while1};
-use combine::stream::RangeStream;
-use combine::*;
 use std::borrow::Cow;
 use std::char;
+
+use nom::{
+    branch::*, bytes::complete::*, character::complete::*, combinator::*, error::context, multi::*,
+    sequence::*, AsChar, IResult,
+};
+
+use crate::parser::errors::CustomError;
+use crate::parser::trivia::{is_non_ascii, is_wschar, newline, ws, ws_newlines};
 
 // ;; String
 
@@ -49,7 +50,8 @@ parse!(basic_chars() -> Cow<'a, str>, {
 
 // basic-unescaped = wschar / %x21 / %x23-5B / %x5D-7E / non-ascii
 #[inline]
-fn is_basic_unescaped(c: char) -> bool {
+fn is_basic_unescaped(c: impl AsChar) -> bool {
+    let c = c.as_char();
     is_wschar(c)
         | matches!(c, '\u{21}' | '\u{23}'..='\u{5B}' | '\u{5D}'..='\u{7E}')
         | is_non_ascii(c)
@@ -88,7 +90,8 @@ parse!(escape() -> char, {
 // escape-seq-char =/ %x75 4HEXDIG ; uXXXX                U+XXXX
 // escape-seq-char =/ %x55 8HEXDIG ; UXXXXXXXX            U+XXXXXXXX
 #[inline]
-fn is_escape_seq_char(c: char) -> bool {
+fn is_escape_seq_char(c: impl AsChar) -> bool {
+    let c = c.as_char();
     matches!(c, '"' | '\\' | 'b' | 'f' | 'n' | 'r' | 't' | 'u' | 'U')
 }
 
@@ -131,94 +134,122 @@ parse!(ml_basic_body() -> String, {
             )
         )
 });
+// ml-basic-body = *mlb-content *( mlb-quotes 1*mlb-content ) [ mlb-quotes ]
+pub(crate) fn ml_basic_body(input: &str) -> IResult<&str, &str> {
+    map(
+        tuple((
+            many0(mll_content),
+            many0(map(tuple((mll_quotes, many1(mll_content))), |(q, c)| {
+                let mut total = q.to_owned();
+                total.push_str(&c);
+                total
+            })),
+            opt(mll_quotes),
+        )),
+        |(mut c, qc, q)| {
+            c.push_str(&qc);
+            c.push_str(q);
+            c
+        },
+    )(input)
+}
 
+// mlb-content = mlb-char / newline / mlb-escaped-nl
 // mlb-char = mlb-unescaped / escaped
-parse!(mlb_char() -> char, {
-    satisfy(|c| is_mlb_unescaped(c) || c == ESCAPE)
-        .then(|c| parser(move |input| {
-            match c {
-                ESCAPE => escape().parse_stream(input).into_result(),
-                _      => Ok((c, Commit::Peek(()))),
-            }
-        }))
-});
+pub(crate) fn mlb_content(input: &str) -> IResult<&str, &str> {
+    alt((
+        // Deviate from the official grammar by batching the unescaped chars so we build a string a
+        // chunk at a time, rather than a `char` at a time.
+        take_while1(is_mlb_unescaped),
+        escaped,
+        map(newline, |_| "\n"),
+        map(mlb_escaped_nl, |_| ""),
+    ))(input)
+}
+
+// mlb-quotes = 1*2quotation-mark
+pub(crate) fn mlb_quotes(input: &str) -> IResult<&str, &str> {
+    alt((tag("\""), tag("\"")))(input)
+}
 
 // mlb-unescaped = wschar / %x21 / %x23-5B / %x5D-7E / non-ascii
 #[inline]
-fn is_mlb_unescaped(c: char) -> bool {
+fn is_mlb_unescaped(c: impl AsChar) -> bool {
+    let c = c.as_char();
     is_wschar(c)
         | matches!(c, '\u{21}' | '\u{23}'..='\u{5B}' | '\u{5D}'..='\u{7E}')
         | is_non_ascii(c)
-        // Unlike the official grammar, we can handle quotes just fine
-        | (c == '\u{22}')
 }
 
+// mlb-escaped-nl = escape ws newline *( wschar / newline )
 // When the last non-whitespace character on a line is a \,
 // it will be trimmed along with all whitespace
 // (including newlines) up to the next non-whitespace
 // character or closing delimiter.
-parse!(try_eat_escaped_newline() -> (), {
-    skip_many(attempt((
-        char(ESCAPE),
-        ws(),
-        ws_newlines(),
-    )))
-});
+pub(crate) fn mlb_escaped_nl(input: &str) -> IResult<&str, ()> {
+    map(many0_count(tuple((char(ESCAPE), ws, ws_newlines))), |_| ())(input)
+}
 
 // ;; Literal String
 
 // literal-string = apostrophe *literal-char apostrophe
-parse!(literal_string() -> &'a str, {
-    between(char(APOSTROPHE), char(APOSTROPHE),
-            take_while(is_literal_char))
-        .message("While parsing a Literal String")
-});
+pub(crate) fn literal_string(input: &str) -> IResult<&str, &str> {
+    delimited(
+        char(APOSTROPHE),
+        take_while(is_literal_char),
+        char(APOSTROPHE),
+    )(input)
+}
 
 // apostrophe = %x27 ; ' apostrophe
 const APOSTROPHE: char = '\'';
 
 // literal-char = %x09 / %x20-26 / %x28-7E / non-ascii
 #[inline]
-fn is_literal_char(c: char) -> bool {
+fn is_literal_char(c: impl AsChar) -> bool {
+    let c = c.as_char();
     matches!(c, '\u{09}' | '\u{20}'..='\u{26}' | '\u{28}'..='\u{7E}') | is_non_ascii(c)
 }
 
 // ;; Multiline Literal String
 
-// ml-literal-string = ml-literal-string-delim ml-literal-body ml-literal-string-delim
-parse!(ml_literal_string() -> String, {
-    between(range(ML_LITERAL_STRING_DELIM),
-            range(ML_LITERAL_STRING_DELIM),
-            ml_literal_body())
-        .message("While parsing a Multiline Literal String")
-});
+// ml-literal-string = ml-literal-string-delim [ newline ] ml-literal-body
+//                     ml-literal-string-delim
+pub(crate) fn ml_literal_string(input: &str) -> IResult<&str, String> {
+    delimited(
+        tag(ML_LITERAL_STRING_DELIM),
+        map(tuple((opt(newline), ml_literal_body)), |(_, b)| {
+            b.replace("\r\n", "\n")
+        }),
+        tag(ML_LITERAL_STRING_DELIM),
+    )(input)
+}
 
 // ml-literal-string-delim = 3apostrophe
 const ML_LITERAL_STRING_DELIM: &str = "'''";
 
-// ml-literal-body = *( ml-literal-char / newline )
-parse!(ml_literal_body() -> String, {
-    //  A newline immediately following the opening delimiter will be trimmed.
-    optional(newline())
-        .with(
-            many(
-                not_followed_by(range(ML_LITERAL_STRING_DELIM).map(Info::Range))
-                    .with(
-                        choice((
-                            // `TOML parsers should feel free to normalize newline
-                            //  to whatever makes sense for their platform.`
-                            newline(),
-                            satisfy(is_mll_char),
-                        ))
-                    )
-            )
-        )
-});
+/// ml-literal-body = *mll-content *( mll-quotes 1*mll-content ) [ mll-quotes ]
+pub(crate) fn ml_literal_body(input: &str) -> IResult<&str, &str> {
+    recognize(tuple((
+        many0_count(mll_content),
+        many0_count(tuple((mll_quotes, many1_count(mll_content)))),
+        opt(mll_quotes),
+    )))(input)
+}
+
+// mll-content = mll-char / newline
+pub(crate) fn mll_content(input: &str) -> IResult<&str, char> {
+    alt((satisfy(is_mll_char), newline))(input)
+}
 
 // mll-char = %x09 / %x20-26 / %x28-7E / non-ascii
 #[inline]
-fn is_mll_char(c: char) -> bool {
+fn is_mll_char(c: impl AsChar) -> bool {
+    let c = c.as_char();
     matches!(c, '\u{09}' | '\u{20}'..='\u{26}' | '\u{28}'..='\u{7E}') | is_non_ascii(c)
-        // Unlike the official grammar, we can handle quotes just fine
-        | (c == '\u{27}')
+}
+
+// mll-quotes = 1*2apostrophe
+pub(crate) fn mll_quotes(input: &str) -> IResult<&str, &str> {
+    alt((tag("''"), tag("'")))(input)
 }
