@@ -14,7 +14,6 @@ use std::hash::Hash;
 use std::iter::FromIterator;
 use std::ops;
 
-use indexmap::map::IndexMap;
 use serde::{de, ser};
 
 use crate::easy::value::Value;
@@ -24,7 +23,7 @@ pub struct Map<K, V> {
     map: MapImpl<K, V>,
 }
 
-type MapImpl<K, V> = IndexMap<K, V>;
+type MapImpl<K, V> = crate::map::Map<K, V>;
 
 impl Map<String, Value> {
     /// Makes a new empty Map.
@@ -37,9 +36,10 @@ impl Map<String, Value> {
 
     /// Makes a new empty Map with the given initial capacity.
     #[inline]
+    #[cfg(feature = "preserve_order")]
     pub fn with_capacity(capacity: usize) -> Self {
         Map {
-            map: IndexMap::with_capacity(capacity),
+            map: Map::with_capacity(capacity),
         }
     }
 
@@ -120,7 +120,7 @@ impl Map<String, Value> {
     where
         S: Into<String>,
     {
-        use indexmap::map::Entry as EntryImpl;
+        use crate::map::Entry as EntryImpl;
 
         match self.map.entry(key.into()) {
             EntryImpl::Vacant(vacant) => Entry::Vacant(VacantEntry { vacant }),
@@ -323,6 +323,7 @@ macro_rules! delegate_iterator {
             }
         }
 
+        #[cfg(feature = "preserve_order")]
         impl $($generics)* DoubleEndedIterator for $name $($generics)* {
             #[inline]
             fn next_back(&mut self) -> Option<Self::Item> {
@@ -367,9 +368,9 @@ pub struct OccupiedEntry<'a> {
     occupied: OccupiedEntryImpl<'a>,
 }
 
-type VacantEntryImpl<'a> = indexmap::map::VacantEntry<'a, String, Value>;
+type VacantEntryImpl<'a> = crate::map::VacantEntry<'a, String, Value>;
 
-type OccupiedEntryImpl<'a> = indexmap::map::OccupiedEntry<'a, String, Value>;
+type OccupiedEntryImpl<'a> = crate::map::OccupiedEntry<'a, String, Value>;
 
 impl<'a> Entry<'a> {
     /// Returns a reference to this entry's key.
@@ -476,7 +477,7 @@ pub struct Iter<'a> {
     iter: IterImpl<'a>,
 }
 
-type IterImpl<'a> = indexmap::map::Iter<'a, String, Value>;
+type IterImpl<'a> = crate::map::Iter<'a, String, Value>;
 
 delegate_iterator!((Iter<'a>) => (&'a String, &'a Value));
 
@@ -498,7 +499,7 @@ pub struct IterMut<'a> {
     iter: IterMutImpl<'a>,
 }
 
-type IterMutImpl<'a> = indexmap::map::IterMut<'a, String, Value>;
+type IterMutImpl<'a> = crate::map::IterMut<'a, String, Value>;
 
 delegate_iterator!((IterMut<'a>) => (&'a String, &'a mut Value));
 
@@ -520,7 +521,7 @@ pub struct IntoIter {
     iter: IntoIterImpl,
 }
 
-type IntoIterImpl = indexmap::map::IntoIter<String, Value>;
+type IntoIterImpl = crate::map::IntoIter<String, Value>;
 
 delegate_iterator!((IntoIter) => (String, Value));
 
@@ -531,7 +532,7 @@ pub struct Keys<'a> {
     iter: KeysImpl<'a>,
 }
 
-type KeysImpl<'a> = indexmap::map::Keys<'a, String, Value>;
+type KeysImpl<'a> = crate::map::Keys<'a, String, Value>;
 
 delegate_iterator!((Keys<'a>) => &'a String);
 
@@ -542,6 +543,6 @@ pub struct Values<'a> {
     iter: ValuesImpl<'a>,
 }
 
-type ValuesImpl<'a> = indexmap::map::Values<'a, String, Value>;
+type ValuesImpl<'a> = crate::map::Values<'a, String, Value>;
 
 delegate_iterator!((Values<'a>) => &'a Value);

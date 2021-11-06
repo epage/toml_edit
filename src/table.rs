@@ -1,6 +1,6 @@
 use std::iter::FromIterator;
 
-use indexmap::map::IndexMap;
+use crate::map::Map;
 
 use crate::key::Key;
 use crate::repr::Decor;
@@ -102,6 +102,7 @@ impl Table {
     /// Sorts Key/Value Pairs of the table.
     ///
     /// Doesn't affect subtables or subarrays.
+    #[cfg(feature = "preserve_order")]
     pub fn sort_values(&mut self) {
         // Assuming standard tables have their position set and this won't negatively impact them
         self.items.sort_keys();
@@ -222,8 +223,8 @@ impl Table {
     pub fn entry<'a>(&'a mut self, key: &str) -> Entry<'a> {
         // Accept a `&str` rather than an owned type to keep `InternalString`, well, internal
         match self.items.entry(key.into()) {
-            indexmap::map::Entry::Occupied(entry) => Entry::Occupied(OccupiedEntry { entry }),
-            indexmap::map::Entry::Vacant(entry) => Entry::Vacant(VacantEntry { entry, key: None }),
+            crate::map::Entry::Occupied(entry) => Entry::Occupied(OccupiedEntry { entry }),
+            crate::map::Entry::Vacant(entry) => Entry::Vacant(VacantEntry { entry, key: None }),
         }
     }
 
@@ -231,8 +232,8 @@ impl Table {
     pub fn entry_format<'a>(&'a mut self, key: &Key) -> Entry<'a> {
         // Accept a `&Key` to be consistent with `entry`
         match self.items.entry(key.get().into()) {
-            indexmap::map::Entry::Occupied(entry) => Entry::Occupied(OccupiedEntry { entry }),
-            indexmap::map::Entry::Vacant(entry) => Entry::Vacant(VacantEntry {
+            crate::map::Entry::Occupied(entry) => Entry::Occupied(OccupiedEntry { entry }),
+            crate::map::Entry::Vacant(entry) => Entry::Vacant(VacantEntry {
                 entry,
                 key: Some(key.to_owned()),
             }),
@@ -299,12 +300,12 @@ impl Table {
 
     /// Removes an item given the key.
     pub fn remove(&mut self, key: &str) -> Option<Item> {
-        self.items.shift_remove(key).map(|kv| kv.value)
+        crate::map::remove(&mut self.items, key).map(|kv| kv.value)
     }
 
     /// Removes a key from the map, returning the stored key and value if the key was previously in the map.
     pub fn remove_entry(&mut self, key: &str) -> Option<(Key, Item)> {
-        self.items.shift_remove(key).map(|kv| (kv.key, kv.value))
+        crate::map::remove(&mut self.items, key).map(|kv| (kv.key, kv.value))
     }
 }
 
@@ -363,7 +364,7 @@ impl<'s> IntoIterator for &'s Table {
     }
 }
 
-pub(crate) type KeyValuePairs = IndexMap<InternalString, TableKeyValue>;
+pub(crate) type KeyValuePairs = Map<InternalString, TableKeyValue>;
 
 fn decorate_table(table: &mut Table) {
     for (key_decor, value) in table
@@ -437,6 +438,7 @@ pub trait TableLike: crate::private::Sealed {
     /// Sorts Key/Value Pairs of the table.
     ///
     /// Doesn't affect subtables or subarrays.
+    #[cfg(feature = "preserve_order")]
     fn sort_values(&mut self);
     /// Change this table's dotted status
     fn set_dotted(&mut self, yes: bool);
@@ -478,6 +480,7 @@ impl TableLike for Table {
     fn fmt(&mut self) {
         self.fmt()
     }
+    #[cfg(feature = "preserve_order")]
     fn sort_values(&mut self) {
         self.sort_values()
     }
@@ -542,9 +545,9 @@ impl<'a> Entry<'a> {
     }
 }
 
-/// A view into a single occupied location in a `IndexMap`.
+/// A view into a single occupied location in a `Map`.
 pub struct OccupiedEntry<'a> {
-    entry: indexmap::map::OccupiedEntry<'a, InternalString, TableKeyValue>,
+    entry: crate::map::OccupiedEntry<'a, InternalString, TableKeyValue>,
 }
 
 impl<'a> OccupiedEntry<'a> {
@@ -591,9 +594,9 @@ impl<'a> OccupiedEntry<'a> {
     }
 }
 
-/// A view into a single empty location in a `IndexMap`.
+/// A view into a single empty location in a `Map`.
 pub struct VacantEntry<'a> {
-    entry: indexmap::map::VacantEntry<'a, InternalString, TableKeyValue>,
+    entry: crate::map::VacantEntry<'a, InternalString, TableKeyValue>,
     key: Option<Key>,
 }
 

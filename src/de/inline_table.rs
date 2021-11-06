@@ -83,7 +83,7 @@ impl<'de> serde::de::IntoDeserializer<'de, crate::de::Error> for crate::InlineTa
 }
 
 pub(crate) struct InlineTableMapAccess {
-    iter: indexmap::map::IntoIter<crate::InternalString, crate::table::TableKeyValue>,
+    iter: crate::map::IntoIter<crate::InternalString, crate::table::TableKeyValue>,
     value: Option<crate::Item>,
 }
 

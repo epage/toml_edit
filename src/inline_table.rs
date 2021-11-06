@@ -79,6 +79,7 @@ impl InlineTable {
     }
 
     /// Sorts the key/value pairs by key.
+    #[cfg(feature = "preserve_order")]
     pub fn sort_values(&mut self) {
         // Assuming standard tables have their position set and this won't negatively impact them
         self.items.sort_keys();
@@ -163,7 +164,7 @@ impl InlineTable {
     pub fn entry<'a>(&'a mut self, key: &str) -> InlineEntry<'a> {
         // Accept a `&str` rather than an owned type to keep `InternalString`, well, internal
         match self.items.entry(key.into()) {
-            indexmap::map::Entry::Occupied(mut entry) => {
+            crate::map::Entry::Occupied(mut entry) => {
                 // Ensure it is a `Value` to simplify `InlineOccupiedEntry`'s code.
                 let mut scratch = Item::None;
                 std::mem::swap(&mut scratch, &mut entry.get_mut().value);
@@ -178,7 +179,7 @@ impl InlineTable {
 
                 InlineEntry::Occupied(InlineOccupiedEntry { entry })
             }
-            indexmap::map::Entry::Vacant(entry) => {
+            crate::map::Entry::Vacant(entry) => {
                 InlineEntry::Vacant(InlineVacantEntry { entry, key: None })
             }
         }
@@ -188,7 +189,7 @@ impl InlineTable {
     pub fn entry_format<'a>(&'a mut self, key: &Key) -> InlineEntry<'a> {
         // Accept a `&Key` to be consistent with `entry`
         match self.items.entry(key.get().into()) {
-            indexmap::map::Entry::Occupied(mut entry) => {
+            crate::map::Entry::Occupied(mut entry) => {
                 // Ensure it is a `Value` to simplify `InlineOccupiedEntry`'s code.
                 let mut scratch = Item::None;
                 std::mem::swap(&mut scratch, &mut entry.get_mut().value);
@@ -203,7 +204,7 @@ impl InlineTable {
 
                 InlineEntry::Occupied(InlineOccupiedEntry { entry })
             }
-            indexmap::map::Entry::Vacant(entry) => InlineEntry::Vacant(InlineVacantEntry {
+            crate::map::Entry::Vacant(entry) => InlineEntry::Vacant(InlineVacantEntry {
                 entry,
                 key: Some(key.clone()),
             }),
@@ -261,14 +262,12 @@ impl InlineTable {
 
     /// Removes an item given the key.
     pub fn remove(&mut self, key: &str) -> Option<Value> {
-        self.items
-            .shift_remove(key)
-            .and_then(|kv| kv.value.into_value().ok())
+        crate::map::remove(&mut self.items, key).and_then(|kv| kv.value.into_value().ok())
     }
 
     /// Removes a key from the map, returning the stored key and value if the key was previously in the map.
     pub fn remove_entry(&mut self, key: &str) -> Option<(Key, Value)> {
-        self.items.shift_remove(key).and_then(|kv| {
+        crate::map::remove(&mut self.items, key).and_then(|kv| {
             let key = kv.key;
             kv.value.into_value().ok().map(|value| (key, value))
         })
@@ -390,6 +389,7 @@ impl TableLike for InlineTable {
     fn fmt(&mut self) {
         self.fmt()
     }
+    #[cfg(feature = "preserve_order")]
     fn sort_values(&mut self) {
         self.sort_values()
     }
@@ -457,9 +457,9 @@ impl<'a> InlineEntry<'a> {
     }
 }
 
-/// A view into a single occupied location in a `IndexMap`.
+/// A view into a single occupied location in a `Map`.
 pub struct InlineOccupiedEntry<'a> {
-    entry: indexmap::map::OccupiedEntry<'a, InternalString, TableKeyValue>,
+    entry: crate::map::OccupiedEntry<'a, InternalString, TableKeyValue>,
 }
 
 impl<'a> InlineOccupiedEntry<'a> {
@@ -507,9 +507,9 @@ impl<'a> InlineOccupiedEntry<'a> {
     }
 }
 
-/// A view into a single empty location in a `IndexMap`.
+/// A view into a single empty location in a `Map`.
 pub struct InlineVacantEntry<'a> {
-    entry: indexmap::map::VacantEntry<'a, InternalString, TableKeyValue>,
+    entry: crate::map::VacantEntry<'a, InternalString, TableKeyValue>,
     key: Option<Key>,
 }
 

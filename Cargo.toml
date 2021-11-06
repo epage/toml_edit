@@ -33,11 +33,12 @@ pre-release-replacements = [
 ]
 
 [features]
-default = []
+default = ["preserve_order"]
+preserve_order = ["indexmap"]
 easy = ["serde"]
 
 [dependencies]
-indexmap = "1.7"
+indexmap = { version = "1.7", optional = true }
 combine = "4.5.2"
 itertools = "0.10"
 serde = { version = "1", features = ["derive"], optional = true }

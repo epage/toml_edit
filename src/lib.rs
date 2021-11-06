@@ -87,6 +87,33 @@ pub mod de;
 #[cfg(feature = "serde")]
 pub mod ser;
 
+#[cfg(feature = "preserve_order")]
+pub(crate) mod map {
+    pub(crate) use indexmap::map::*;
+    pub(crate) use IndexMap as Map;
+
+    pub(crate) fn remove<K, V, Q: ?Sized>(map: &mut Map<K, V>, key: &Q) -> Option<V>
+    where
+        K: std::borrow::Borrow<Q> + std::hash::Hash + Eq,
+        Q: std::hash::Hash + Eq,
+    {
+        map.shift_remove(key)
+    }
+}
+#[cfg(not(feature = "preserve_order"))]
+pub(crate) mod map {
+    pub(crate) use std::collections::hash_map::*;
+    pub(crate) use HashMap as Map;
+
+    pub(crate) fn remove<K, V, Q: ?Sized>(map: &mut Map<K, V>, key: &Q) -> Option<V>
+    where
+        K: std::borrow::Borrow<Q> + std::hash::Hash + Eq,
+        Q: std::hash::Hash + Eq,
+    {
+        map.remove(key)
+    }
+}
+
 pub use crate::array::{Array, ArrayIntoIter, ArrayIter, ArrayIterMut};
 pub use crate::array_of_tables::{
     ArrayOfTables, ArrayOfTablesIntoIter, ArrayOfTablesIter, ArrayOfTablesIterMut,
