@@ -134,20 +134,20 @@ impl TomlParser {
     }
 
     fn on_comment(&mut self, c: &str, e: &str) {
-        self.trailing = [&self.trailing, c, e].concat();
+        self.trailing.push_str(c);
+        self.trailing.push_str(e);
     }
 
     fn on_keyval(&mut self, mut path: Vec<Key>, mut kv: TableKeyValue) -> Result<(), CustomError> {
         {
-            let prefix = mem::take(&mut self.trailing);
+            let mut prefix = mem::take(&mut self.trailing);
             let first_key = if path.is_empty() {
                 &mut kv.key
             } else {
                 &mut path[0]
             };
-            first_key
-                .decor
-                .set_prefix(prefix + first_key.decor.prefix().unwrap_or_default());
+            prefix.push_str(first_key.decor.prefix().unwrap_or_default());
+            first_key.decor.set_prefix(crate::InternalString(prefix));
         }
 
         let table = &mut self.current_table;

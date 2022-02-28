@@ -29,7 +29,7 @@ parse!(simple_key() -> (&'a str, InternalString), {
     recognize_with_value(
         look_ahead(any()).then(|e| {
             dispatch!(e;
-                crate::parser::strings::QUOTATION_MARK => basic_string().map(|s: String| s.into()),
+                crate::parser::strings::QUOTATION_MARK => basic_string().map(|s: compact_str::CompactStr| crate::InternalString(s)),
                 crate::parser::strings::APOSTROPHE => literal_string().map(|s: &'a str| s.into()),
                 _ => unquoted_key().map(|s: &'a str| s.into()),
             )

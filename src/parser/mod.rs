@@ -29,7 +29,7 @@ use crate::{ArrayOfTables, Document, Entry, Item, Table};
 
 pub(crate) struct TomlParser {
     document: Document,
-    trailing: String,
+    trailing: compact_str::CompactStr,
     current_table_position: usize,
     current_table: Table,
     current_is_array: bool,
@@ -143,7 +143,7 @@ impl Default for TomlParser {
     fn default() -> Self {
         Self {
             document: Document::new(),
-            trailing: String::new(),
+            trailing: compact_str::CompactStr::new(""),
             current_table_position: 0,
             current_table: Table::new(),
             current_is_array: false,

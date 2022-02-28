@@ -13,7 +13,7 @@ use std::char;
 // ;; String
 
 // string = ml-basic-string / basic-string / ml-literal-string / literal-string
-parse!(string() -> String, {
+parse!(string() -> compact_str::CompactStr, {
     choice((
         ml_basic_string(),
         basic_string(),
@@ -25,7 +25,7 @@ parse!(string() -> String, {
 // ;; Basic String
 
 // basic-string = quotation-mark *basic-char quotation-mark
-parse!(basic_string() -> String, {
+parse!(basic_string() -> compact_str::CompactStr, {
     between(
         byte(QUOTATION_MARK), byte(QUOTATION_MARK),
         many(basic_chars())
@@ -115,7 +115,7 @@ parse!(hexescape(n: usize) -> char, {
 
 // ml-basic-string = ml-basic-string-delim [ newline ] ml-basic-body
 //                   ml-basic-string-delim
-parse!(ml_basic_string() -> String, {
+parse!(ml_basic_string() -> compact_str::CompactStr, {
     (
         range(ML_BASIC_STRING_DELIM),
         (
@@ -145,20 +145,20 @@ parse!(ml_basic_string() -> String, {
 const ML_BASIC_STRING_DELIM: &[u8] = b"\"\"\"";
 
 // ml-basic-body = *mlb-content *( mlb-quotes 1*mlb-content ) [ mlb-quotes ]
-parse!(ml_basic_body() -> String, {
+parse!(ml_basic_body() -> compact_str::CompactStr, {
     (
         many(mlb_content()),
         many(attempt((
             mlb_quotes(),
             many1(mlb_content()),
-        ).map(|(q, c): (&str, String)| {
+        ).map(|(q, c): (&str, compact_str::CompactStr)| {
             let mut total = q.to_owned();
             total.push_str(&c);
             total
         }))),
         // Deviate: see `ml_basic_string`
         //optional(mll_quotes()),
-    ).map(|(mut c, qc): (String, String)| {
+    ).map(|(mut c, qc): (compact_str::CompactStr, compact_str::CompactStr)| {
         c.push_str(&qc);
         c
     })
@@ -230,7 +230,7 @@ fn is_literal_char(c: u8) -> bool {
 
 // ml-literal-string = ml-literal-string-delim [ newline ] ml-literal-body
 //                     ml-literal-string-delim
-parse!(ml_literal_string() -> String, {
+parse!(ml_literal_string() -> compact_str::CompactStr, {
     (
         range(ML_LITERAL_STRING_DELIM),
         (

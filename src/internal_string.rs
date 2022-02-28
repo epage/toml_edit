@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 /// Opaque string storage internal to `toml_edit`
 #[derive(Default, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct InternalString(compact_str::CompactStr);
+pub struct InternalString(pub(crate) compact_str::CompactStr);
 
 impl InternalString {
     /// Create an empty string

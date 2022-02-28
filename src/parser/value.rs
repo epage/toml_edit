@@ -18,7 +18,7 @@ parse!(value() -> v::Value, {
             crate::parser::strings::QUOTATION_MARK |
             crate::parser::strings::APOSTROPHE => string().map(|s| {
                 v::Value::String(Formatted::new(
-                    s,
+                    s.as_str().to_owned(),
                 ))
             }),
             crate::parser::array::ARRAY_OPEN => array().map(v::Value::Array),
