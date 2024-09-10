@@ -942,6 +942,7 @@ dependencies = [
  "toml 0.5.11",
  "toml 0.8.19",
  "toml_edit",
+ "toml_parse",
 ]
 
 [[package]]
@@ -980,6 +981,9 @@ dependencies = [
 [[package]]
 name = "toml_parse"
 version = "0.1.0"
+dependencies = [
+ "snapbox",
+]
 
 [[package]]
 name = "typeid"

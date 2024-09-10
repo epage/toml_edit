@@ -28,3 +28,6 @@ pre-release-replacements = [
 
 [features]
 default = []
+
+[dev-dependencies]
+snapbox = "0.6.0"
