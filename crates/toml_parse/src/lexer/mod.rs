@@ -145,7 +145,7 @@ pub(crate) const WSCHAR: (u8, u8) = (b' ', b'\t');
 /// - `stream[0] == b'#'`
 unsafe fn lex_comment<'i>(stream: &mut &'i [u8]) -> Token<'i> {
     debug_assert_utf8!(stream, "caller must start on `char` boundary");
-    debug_assert_eq!(stream.get(0), Some(&COMMENT_START_SYMBOL));
+    debug_assert_eq!(stream.first(), Some(&COMMENT_START_SYMBOL));
 
     let mut offset = 1; // COMMENT_START_SYMBOL
     let next = &stream[offset..];
@@ -179,7 +179,7 @@ pub(crate) const COMMENT_START_SYMBOL: u8 = b'#';
 /// - `stream[0] == b'\r'`
 unsafe fn lex_crlf<'i>(stream: &mut &'i [u8]) -> Token<'i> {
     debug_assert_utf8!(stream, "caller must start on `char` boundary");
-    debug_assert_eq!(stream.get(0), Some(&b'\r'));
+    debug_assert_eq!(stream.first(), Some(&b'\r'));
 
     let has_lf = stream.get(1) == Some(&b'\n');
 
@@ -214,7 +214,7 @@ unsafe fn lex_crlf<'i>(stream: &mut &'i [u8]) -> Token<'i> {
 /// - `stream[0] == b'\''`
 unsafe fn lex_literal_string<'i>(stream: &mut &'i [u8]) -> Token<'i> {
     debug_assert_utf8!(stream, "caller must start on `char` boundary");
-    debug_assert_eq!(stream.get(0), Some(&APOSTROPHE));
+    debug_assert_eq!(stream.first(), Some(&APOSTROPHE));
 
     let mut offset = 1; // APOSTROPHE
     let next = &stream[offset..];
@@ -261,7 +261,7 @@ pub(crate) const APOSTROPHE: u8 = b'\'';
 /// - `stream.starts_with(ML_LITERAL_STRING_DELIM)`
 unsafe fn lex_ml_literal_string<'i>(stream: &mut &'i [u8]) -> Token<'i> {
     debug_assert_utf8!(stream, "caller must start on `char` boundary");
-    debug_assert_eq!(stream.get(0), Some(&APOSTROPHE));
+    debug_assert_eq!(stream.first(), Some(&APOSTROPHE));
 
     let mut offset = ML_LITERAL_STRING_DELIM.len();
     let next = &stream[offset..];
@@ -318,7 +318,7 @@ pub(crate) const ML_LITERAL_STRING_DELIM: &str = "'''";
 /// - `stream[0] == b'"'`
 unsafe fn lex_basic_string<'i>(stream: &mut &'i [u8]) -> Token<'i> {
     debug_assert_utf8!(stream, "caller must start on `char` boundary");
-    debug_assert_eq!(stream.get(0), Some(&QUOTATION_MARK));
+    debug_assert_eq!(stream.first(), Some(&QUOTATION_MARK));
 
     let mut offset = 1; // QUOTATION_MARK
     let next = &stream[offset..];
@@ -389,7 +389,7 @@ pub(crate) const ESCAPE: u8 = b'\\';
 /// - `stream.starts_with(ML_BASIC_STRING_DELIM)`
 unsafe fn lex_ml_basic_string<'i>(stream: &mut &'i [u8]) -> Token<'i> {
     debug_assert_utf8!(stream, "caller must start on `char` boundary");
-    debug_assert_eq!(stream.get(0), Some(&QUOTATION_MARK));
+    debug_assert_eq!(stream.first(), Some(&QUOTATION_MARK));
 
     let mut offset = ML_BASIC_STRING_DELIM.len();
     let next = &stream[offset..];

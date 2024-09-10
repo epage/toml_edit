@@ -107,6 +107,19 @@ impl<'i> Raw<'i> {
         self.inner.len()
     }
 
+    pub fn before(&self) -> Self {
+        Self {
+            inner: &self.inner[0..0],
+        }
+    }
+
+    pub fn after(&self) -> Self {
+        let len = self.len();
+        Self {
+            inner: &self.inner[len..len],
+        }
+    }
+
     pub fn as_str(&self) -> &'i str {
         self.inner
     }
