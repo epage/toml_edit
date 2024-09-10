@@ -28,6 +28,10 @@ pre-release-replacements = [
 
 [features]
 default = []
+simd = ["winnow/simd"]
+
+[dependencies]
+winnow = "0.6.0"
 
 [dev-dependencies]
 snapbox = "0.6.0"

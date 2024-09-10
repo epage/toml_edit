@@ -4,11 +4,8 @@ mod toml_parse {
     use toml_benchmarks::{Data, MANIFESTS};
 
     #[divan::bench(args=MANIFESTS)]
-    fn tokens(sample: &Data<'static>) {
-        let mut tokenizer = ::toml_parse::lexer::Tokenizer::new(sample.content());
-        while let Ok(Some(token)) = tokenizer.next() {
-            std::hint::black_box(token);
-        }
+    fn tokens(sample: &Data<'static>) -> Option<::toml_parse::lexer::Token<'static>> {
+        ::toml_parse::Document::new(sample.content()).lex().last()
     }
 }
 

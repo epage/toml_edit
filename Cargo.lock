@@ -983,6 +983,7 @@ name = "toml_parse"
 version = "0.1.0"
 dependencies = [
  "snapbox",
+ "winnow",
 ]
 
 [[package]]
