@@ -23,7 +23,8 @@ impl<'i> Lexer<'i> {
     }
 
     pub fn into_vec(self) -> Vec<Token<'i>> {
-        let mut vec = Vec::new();
+        let capacity = std::cmp::min(self.stream.len(), usize::MAX / std::mem::size_of::<Token>());
+        let mut vec = Vec::with_capacity(capacity);
         vec.extend(self);
         vec
     }
