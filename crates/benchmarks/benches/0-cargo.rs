@@ -7,6 +7,21 @@ mod toml_parse {
     fn tokens(sample: &Data<'static>) -> Option<::toml_parse::lexer::Token<'static>> {
         ::toml_parse::Document::new(sample.content()).lex().last()
     }
+
+    #[divan::bench(args=MANIFESTS)]
+    fn events(sample: &Data<'static>) {
+        let tokens = ::toml_parse::Document::new(sample.content())
+            .lex()
+            .into_vec();
+        let mut errors = Vec::with_capacity(tokens.len());
+        ::toml_parse::parser::parse_tokens(
+            &tokens,
+            &mut |event| {
+                std::hint::black_box(event);
+            },
+            &mut errors,
+        );
+    }
 }
 
 mod toml_edit {

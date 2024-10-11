@@ -29,6 +29,15 @@ impl<'i> Token<'i> {
     pub fn raw(&self) -> Raw<'i> {
         self.raw
     }
+
+    pub fn to_error(self, expected: &'static [crate::Expected]) -> crate::ParseError<'i> {
+        crate::ParseError {
+            context: self.raw(),
+            description: self.kind().description(),
+            expected,
+            unexpected: self.raw(),
+        }
+    }
 }
 
 impl<'i> std::fmt::Display for Token<'i> {

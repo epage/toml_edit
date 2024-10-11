@@ -5,10 +5,30 @@ fn main() -> Result<(), lexopt::Error> {
         Parser::Tokens => {
             let _tokens = ::toml_parse::Document::new(args.data.content())
                 .lex()
-                .collect::<Vec<_>>();
+                .into_vec();
             let _tokens = std::hint::black_box(_tokens);
             #[cfg(debug_assertions)] // Don't interefere with profiling
             println!("{:?}", _tokens);
+        }
+        Parser::Events => {
+            let tokens = ::toml_parse::Document::new(args.data.content())
+                .lex()
+                .into_vec();
+            let mut events = Vec::with_capacity(tokens.len());
+            let events_ref = &mut events;
+            let mut _errors = Vec::with_capacity(tokens.len());
+            ::toml_parse::parser::parse_tokens(
+                &tokens,
+                &mut move |event| {
+                    events_ref.push(event);
+                },
+                &mut _errors,
+            );
+            let _events = std::hint::black_box(events);
+            #[cfg(debug_assertions)] // Don't interefere with profiling
+            println!("{:?}", _events);
+            #[cfg(debug_assertions)] // Don't interefere with profiling
+            println!("{:?}", _errors);
         }
         Parser::Document => {
             let _doc = args
@@ -56,6 +76,7 @@ impl Args {
                     let value = args.value()?;
                     parser = match &value.to_str() {
                         Some("tokens") => Parser::Tokens,
+                        Some("events") => Parser::Events,
                         Some("document") => Parser::Document,
                         Some("de") => Parser::De,
                         Some("table") => Parser::Table,
@@ -90,6 +111,7 @@ impl Args {
 
 enum Parser {
     Tokens,
+    Events,
     Document,
     De,
     Table,
