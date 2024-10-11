@@ -116,8 +116,38 @@ impl<'i> Raw<'i> {
         self.inner.len()
     }
 
+    pub fn before(&self) -> Self {
+        Self {
+            inner: &self.inner[0..0],
+        }
+    }
+
+    pub fn after(&self) -> Self {
+        let len = self.len();
+        Self {
+            inner: &self.inner[len..len],
+        }
+    }
+
     pub fn as_str(&self) -> &'i str {
         self.inner
+    }
+
+    /// Extend this `Raw` to the end of `after`
+    ///
+    /// # Safety
+    ///
+    /// `after` must come from the same `&str`
+    pub(crate) unsafe fn append(&self, after: Self) -> Self {
+        let start = self.inner.as_ptr();
+        let end = after.inner.as_ptr() as usize + after.inner.len();
+        debug_assert!(start as usize <= end, "arguments swapped");
+        let len = end - start as usize;
+        // SAFETY: callers must ensure these come from same `&str`
+        let slice = unsafe { std::slice::from_raw_parts(start, len) };
+        // SAFETY: if these come from the same `&str` then they've already been validated
+        let new_inner = unsafe { std::str::from_utf8_unchecked(slice) };
+        Self::new_unchecked(new_inner)
     }
 }
 
