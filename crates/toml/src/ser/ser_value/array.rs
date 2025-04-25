@@ -1,20 +1,20 @@
-use super::write_value;
-use super::{Error, ValueSerializer};
+use toml_write::TomlWrite as _;
 
-type InnerSerializeValueSeq = <toml_edit::ser::ValueSerializer as serde::Serializer>::SerializeSeq;
+use super::Error;
 
 #[doc(hidden)]
 pub struct SerializeValueArray<'d> {
-    inner: InnerSerializeValueSeq,
     dst: &'d mut String,
+    seen_value: bool,
 }
 
 impl<'d> SerializeValueArray<'d> {
-    pub(crate) fn new(ser: ValueSerializer<'d>, inner: InnerSerializeValueSeq) -> Self {
-        Self {
-            inner,
-            dst: ser.dst,
-        }
+    pub(crate) fn new(dst: &'d mut String) -> Result<Self, Error> {
+        dst.open_array()?;
+        Ok(Self {
+            dst,
+            seen_value: false,
+        })
     }
 }
 
@@ -26,11 +26,18 @@ impl serde::ser::SerializeSeq for SerializeValueArray<'_> {
     where
         T: serde::ser::Serialize + ?Sized,
     {
-        self.inner.serialize_element(value).map_err(Error::wrap)
+        if self.seen_value {
+            self.dst.val_sep()?;
+            self.dst.space()?;
+        }
+        self.seen_value = true;
+        value.serialize(super::ValueSerializer::new(self.dst))?;
+        Ok(())
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        write_value(self.dst, self.inner.end())
+        self.dst.close_array()?;
+        Ok(())
     }
 }
 
@@ -42,11 +49,11 @@ impl serde::ser::SerializeTuple for SerializeValueArray<'_> {
     where
         T: serde::ser::Serialize + ?Sized,
     {
-        self.inner.serialize_element(value).map_err(Error::wrap)
+        serde::ser::SerializeSeq::serialize_element(self, value)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        write_value(self.dst, self.inner.end())
+        serde::ser::SerializeSeq::end(self)
     }
 }
 
@@ -58,11 +65,11 @@ impl serde::ser::SerializeTupleVariant for SerializeValueArray<'_> {
     where
         T: serde::ser::Serialize + ?Sized,
     {
-        self.inner.serialize_field(value).map_err(Error::wrap)
+        serde::ser::SerializeSeq::serialize_element(self, value)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        write_value(self.dst, self.inner.end())
+        serde::ser::SerializeSeq::end(self)
     }
 }
 
@@ -74,10 +81,10 @@ impl serde::ser::SerializeTupleStruct for SerializeValueArray<'_> {
     where
         T: serde::ser::Serialize + ?Sized,
     {
-        self.inner.serialize_field(value).map_err(Error::wrap)
+        serde::ser::SerializeSeq::serialize_element(self, value)
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        write_value(self.dst, self.inner.end())
+        serde::ser::SerializeSeq::end(self)
     }
 }
